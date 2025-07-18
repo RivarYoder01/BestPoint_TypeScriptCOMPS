@@ -7,12 +7,14 @@
 import axios from 'axios'; // Importing axios for HTTP requests
 import * as dotenv from 'dotenv'; // Importing dotenv to manage environment variables
 dotenv.config(); // Load environment variables from .env file
+import sharp from 'sharp';
+import fs from 'fs';
 
 const SITE_URL = 'https://bestpointwebdesign.com/wp-json/wp/v2/media'; // Testing site URL
 
-async function altTextToWP(result: string, imageId: number): Promise<void> {
+async function compressedImageToWP(imageUrl: string, imageId: number): Promise<void> {
     /**
-     * Function receives the alt text from ChatGPT. It starts by pulling the REST API credentials from GitHub secrets and
+     * Function receives compressed image. It starts by pulling the REST API credentials from GitHub secrets and
      * storing them as auth. It then prepares the payload with the alt text and headers for the request. Finally,
      * it sends a POST request to the WordPress API to update the alt text for the image.
      */
@@ -25,7 +27,7 @@ async function altTextToWP(result: string, imageId: number): Promise<void> {
     }
 
     const renameImageUrl = `${SITE_URL}/${imageId}`; // Constructing the URL to update the image alt text
-    const payload = { alt_text: result }; // Store result from previous function
+    const payload = { alt_text: imageUrl }; // Store result from previous function
 
     try {// Sending a POST request to update the alt text
         const response = await axios.post(renameImageUrl, payload, {
@@ -55,7 +57,7 @@ async function altTextToWP(result: string, imageId: number): Promise<void> {
     }
 }
 
-async function generateAltText(imageUrl: string, imageId: number): Promise<void> {
+async function compressImage(imageUrl: string, imageId: number): Promise<void> {
     /**
      * Takes in pulled_images as a list, using load_dotenv() to pull the API key from .env file. OS is used to access
      *     ChatGPT with that key.
@@ -69,46 +71,15 @@ async function generateAltText(imageUrl: string, imageId: number): Promise<void>
      *
      *     FOR NOW: Prints result from Chatgpt, will soon pass into a function to pass alt text into WordPress
      */
-    const openaiApiKey = process.env.OPENAI_API_KEY; // Pulling OpenAI API key from GitHub secrets
 
-    if (!openaiApiKey) { // if openaiApiKey is not set, log an error and end the program
-        console.error('Missing OpenAI API key.');
-        process.exit(1);
-    }
-
-    const prompt = `Generate alternative text for this image that is no longer than 150 characters long. Do not give 
-    any other text and clear all formatting. Describe the image's purpose, essential information, only include what is 
-    relevant to a sighted user. Use natural language, no abbreviations or jargon. Avoid phrases like 'click here' and 
-    'image of'. End with a period.`;
 
     try {
-        const response = await axios.post( // Storing the response and starting the request
-            'https://api.openai.com/v1/chat/completions', // OpenAI API endpoint for chat completions
-            {
-                model: 'gpt-4o',
-                messages: [
-                    {
-                        role: 'user',
-                        content: [
-                            { type: 'text', text: prompt }, // Text prompt
-                            { type: 'image_url', image_url: { url: imageUrl } }, // Image URL
-                        ],
-                    },
-                ],
-            },
-            {
-                headers: { // Headers for the request
-                    Authorization: `Bearer ${openaiApiKey}`, // Authorization header with Bearer token
-                    'Content-Type': 'application/json', // Content-Type header
-                },
-            }
-        );
-
-        const altText = response.data.choices[0].message.content; // Extracting alt text from the response
-        console.log(altText);
-        await altTextToWP(altText, imageId); // running altTextToWP function to post the alt text to WordPress
+        await sharp(imageUrl)
+            .jpeg({ quality: 80 }) // Compressing the image to JPEG format with 80% quality
+            .toFile(imageUrl); // Saving the compressed image to the output path
+        await compressedImageToWP(imageUrl, imageId); // running compressedImageToWP function to post replace the image in WordPress
     } catch (error: any) {
-        console.error('Unexpected error connecting to or receiving from ChatGPT:', error.message);
+        console.error('Unexpected error occurred when compressing image: ', error.message);
         console.log('-----------------------------------------------------------------------------------------------');
         process.exit(1);
     }
@@ -121,7 +92,7 @@ async function pullWpImages(): Promise<void> {
      */
     try {
         const response = await axios.get(SITE_URL); // Getting images from WordPress REST API
-        const allowedTypes = ['png', 'jpeg', 'gif', 'webp']; // Allowed image types
+        const allowedTypes = ['png', 'jpeg']; // Allowed image types
         const pulledImages: string[] = []; // Array to store pulled image URLs
         const imageIds: number[] = []; // Array to store image IDs
 
@@ -132,15 +103,15 @@ async function pullWpImages(): Promise<void> {
             ) {
                 imageIds.push(image.id); // Store the image ID
                 pulledImages.push(image.source_url); // Store the image URL
-            } else { // If the image type is not allowed, ChatGPT does not support it, skip restart the loop
-                console.log(`Skipped - ChatGPT does not support this image type: ${image.source_url}`);
+            } else { // If the image type is not allowed, skip it
+                console.log(`Skipped - This image does not need to be compressed: ${image.source_url}`);
                 console.log('-----------------------------------------------------------------------------------------------');
             }
         }
 
         if (pulledImages.length > 0) { // If there are images to process
             for (let i = 0; i < pulledImages.length; i++) { // Loop through each pulled image
-                await generateAltText(pulledImages[i], imageIds[i]); // Generate alt text for each image
+                await compressImage(pulledImages[i], imageIds[i]); // Generate alt text for each image
             }
         } else { // If no images were found, log a message and end the program
             console.log('No images found.');
