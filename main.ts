@@ -12,48 +12,50 @@ import fs from 'fs';
 
 const SITE_URL = 'https://bestpointwebdesign.com/wp-json/wp/v2/media'; // Testing site URL
 
-async function compressedImageToWP(imageUrl: string, imageId: number): Promise<void> {
+async function compressedImageToWP(imagePath: string, imageId: number): Promise<void> {
     /**
-     * Function receives compressed image. It starts by pulling the REST API credentials from GitHub secrets and
-     * storing them as auth. It then prepares the payload with the alt text and headers for the request. Finally,
-     * it sends a POST request to the WordPress API to update the alt text for the image.
-     */
-    const wpUsername = process.env.WP_USERNAME; // Pulling WordPress username from GitHub secrets
-    const wpPassword = process.env.WP_PASSWORD; // Pulling WordPress password from GitHub secrets
+    Function receives the alt text from ChatGPT. It starts by pulling the REST API credentials from GitHub secrets and
+    storing them as auth. It then prepares the payload with the alt text and headers for the request. Finally,
+        it sends a POST request to the WordPress API to update the alt text for the image.
+    */
 
-    if (!wpUsername || !wpPassword) { // If either the username or password is not set, exit the program
+    const wpUsername = process.env.WP_USERNAME; // WordPress username from environment variables
+    const wpPassword = process.env.WP_PASSWORD; // WordPress password from environment variables
+
+    if (!wpUsername || !wpPassword) { // If credentials are not available
         console.error('Missing WordPress credentials.');
         process.exit(1);
     }
 
-    const renameImageUrl = `${SITE_URL}/${imageId}`; // Constructing the URL to update the image alt text
-    const payload = { alt_text: imageUrl }; // Store result from previous function
+    const updateUrl = `${SITE_URL}/${imageId}`; //
+    const imageBuffer = fs.readFileSync(imagePath); // Read the image file from the provided path
+    const fileName = imagePath.split(/[\\/]/).pop() || 'image.png';
 
-    try {// Sending a POST request to update the alt text
-        const response = await axios.post(renameImageUrl, payload, {
-            headers: { // Setting headers for the request
-                'Content-Type': 'application/json',
-                'User-Agent': 'PostmanRuntime/7.44.1',
+    try {
+        const response = await axios.post(updateUrl, imageBuffer, {
+            headers: {
+                'Content-Type': 'image/png',
+                'Content-Disposition': `attachment; filename="${fileName}"`,
             },
-            auth: { // Using basic authentication with WordPress credentials
+            auth: {
                 username: wpUsername,
                 password: wpPassword,
             },
         });
 
-        if (response.status === 200) { // Request was successful
-            console.log('Alt text updated successfully.');
+        if (response.status === 200) {
+            console.log('Image replaced successfully.');
             console.log('-----------------------------------------------------------------------------------------------');
             return;
-        } else { // Request failed to update
-            console.error(`Failed to update alt text: ${response.status} ${response.statusText}`);
+        } else {
+            console.error(`Failed to replace image: ${response.status} ${response.statusText}`);
             console.log('-----------------------------------------------------------------------------------------------');
-            return;
+            process.exit(1);
         }
-    } catch (error: any) { // If any error occurs during the request
-        console.error('Error posting to WordPress:', error.message);
+    } catch (error: any) {
+        console.error('Error replacing image in WordPress:', error.message);
         console.log('-----------------------------------------------------------------------------------------------');
-        return;
+        process.exit(1);
     }
 }
 
