@@ -9,6 +9,7 @@ import * as dotenv from 'dotenv'; // Importing dotenv to manage environment vari
 dotenv.config(); // Load environment variables from .env file
 import sharp from 'sharp';
 import fs from 'fs';
+import path from 'path';
 
 const SITE_URL = 'https://bestpointwebdesign.com/wp-json/wp/v2/media'; // Testing site URL
 
@@ -74,12 +75,20 @@ async function compressImage(imageUrl: string, imageId: number): Promise<void> {
      *     FOR NOW: Prints result from Chatgpt, will soon pass into a function to pass alt text into WordPress
      */
 
-
     try {
-        await sharp(imageUrl)
-            .jpeg({ quality: 80 }) // Compressing the image to JPEG format with 80% quality
-            .toFile(imageUrl); // Saving the compressed image to the output path
-        await compressedImageToWP(imageUrl, imageId); // running compressedImageToWP function to post replace the image in WordPress
+        const ext = path.extname(imageUrl); // Get the file extension
+        const base = imageUrl.replace(ext, ''); // Remove the extension from the URL to create a base name
+        const compressedPath = `${base}.compressed${ext}`; // Create a new path for the compressed image
+
+        // Compress to a new file
+        await sharp(imageUrl) // Load the image from the provided URL
+            .toFormat(ext === '.png' ? 'png' : 'jpeg', { quality: 80 }) // Convert to PNG or JPEG with quality 80
+            .toFile(compressedPath); // Save the compressed image to the new path
+
+        await compressedImageToWP(compressedPath, imageId);
+
+        // Optionally, overwrite the original
+        // fs.renameSync(compressedPath, imageUrl);
     } catch (error: any) {
         console.error('Unexpected error occurred when compressing image: ', error.message);
         console.log('-----------------------------------------------------------------------------------------------');
