@@ -30,7 +30,7 @@ async function compressedImageToWP(imagePath: string, imageId: number): Promise<
 
     const updateUrl = `${SITE_URL}/${imageId}`; //
     const imageBuffer = fs.readFileSync(imagePath); // Read the image file from the provided path
-    const fileName = imagePath.split(/[\\/]/).pop() || 'image.png';
+    const fileName = imagePath.split(/[\\/]/).pop();
 
     try {
         const response = await axios.post(updateUrl, imageBuffer, {
@@ -84,6 +84,8 @@ async function compressImage(imageUrl: string, imageId: number): Promise<void> {
         await sharp(imageUrl) // Load the image from the provided URL
             .toFormat(ext === '.png' ? 'png' : 'jpeg', { quality: 80 }) // Convert to PNG or JPEG with quality 80
             .toFile(compressedPath); // Save the compressed image to the new path
+        console.log(compressedPath);
+        console.log(imageId);
 
         await compressedImageToWP(compressedPath, imageId);
 
