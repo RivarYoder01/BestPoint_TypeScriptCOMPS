@@ -79,13 +79,13 @@ async function compressImage(imageUrl: string, imageId: number): Promise<void> {
         const ext = path.extname(imageUrl); // Get the file extension
         const base = imageUrl.replace(ext, ''); // Remove the extension from the URL to create a base name
         const compressedPath = `${base}.compressed${ext}`; // Create a new path for the compressed image
+        console.log(compressedPath);
+        console.log(imageId);
 
         // Compress to a new file
         await sharp(imageUrl) // Load the image from the provided URL
             .toFormat(ext === '.png' ? 'png' : 'jpeg', { quality: 80 }) // Convert to PNG or JPEG with quality 80
             .toFile(compressedPath); // Save the compressed image to the new path
-        console.log(compressedPath);
-        console.log(imageId);
 
         await compressedImageToWP(compressedPath, imageId);
 
